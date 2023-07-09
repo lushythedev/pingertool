@@ -53,6 +53,40 @@ class PingHistory:
         self.test_number += 1
         self.results = []  # Clear the results after saving the test
 
+
+
+    def add_result(self, result):
+        self.results.append(result)
+        self.save_result(result)
+
+    def save_result(self, result):
+        filename = f"test_{self.test_number}.txt"
+        with open(filename, "w") as file:
+            file.write(f"--- Ping Result Test #{self.test_number} ---\n")
+            file.write(f"Target: {result.target}\n")
+            file.write(f"Protocol: {result.protocol}\n")
+            file.write(f"Port: {result.port}\n")
+            file.write(f"Response Time: {result.response_time:.0f} ms\n")
+            if result.error:
+                file.write(f"Error: {result.error}\n")
+        self.test_number += 1
+
+
+    def display_statistics(self):
+        if not self.results:
+            print(f"{CRED}No statistics available. Run a scan first.{CRESET}")
+        else:
+            total_pings = len(self.results)
+            successful_pings = len([result for result in self.results if result.response_time is not None])
+            success_rate = successful_pings / total_pings * 100 if total_pings > 0 else 0
+            average_response_time = sum(result.response_time for result in self.results if result.response_time is not None) / successful_pings if successful_pings > 0 else 0
+
+            print(f"{CGREEN}--- Ping Statistics ---{CRESET}")
+            print(f"{CWHITE}Total Pings: {CGREEN}{total_pings}")
+            print(f"{CWHITE}Successful Pings: {CGREEN}{successful_pings}")
+            print(f"{CWHITE}Success Rate: {CGREEN}{success_rate:.2f}%")
+            print(f"{CWHITE}Average Response Time: {CGREEN}{average_response_time:.2f} ms{CRESET}")
+
 def udp_ping(ip, port):
     # UDP ping logic
     try:
@@ -148,7 +182,7 @@ def icmp_ping(ip):
         return None, error_message
 
 def calculate_checksum(data):
-    # Calculate the checksum for ICMP packets.
+    # Calculate the checksum forICMP packets.
     checksum = 0
 
     # If the data length is odd, append a zero byte
@@ -169,70 +203,244 @@ def calculate_checksum(data):
 
     return checksum
 
+def http_ping(url):
+    # HTTP ping logic
+    try:
+        start_time = time.time()  # Record the start time
+        response = urllib.request.urlopen(url, timeout=10)  # Increase the timeout to 10 seconds
+        end_time = time.time()  # Record the end time
+        
+        ms_response = (end_time - start_time) * 1000  # Calculate the time difference in milliseconds
+        return ms_response, None  # Return the response time and no error
+    
+    except urllib.error.URLError as e:
+        return None, str(e)  # Return the error message without the "Error: " prefix
+    except socket.timeout:
+        return None, "Connection timeout"
+    except Exception as e:
+        return None, f"Error: {str(e)}"
 
-def main():
+def display_history(history):
+    if not history.results:
+        print(f"{CRED}No ping history available.{CRESET}")
+    else:
+        for result in history.results:
+            print(f"--- Ping Result Test #{result.test_number} ---")
+            print(f"Target: {CCYAN}{result.target}")
+            print(f"Protocol: {CCYAN}{result.protocol}")
+            print(f"Port: {CCYAN}{result.port}")
+            print(f"Response Time: {CCYAN}{result.response_time:.0f} ms{CRESET}")
+            if result.error:
+                print(f"Error: {CRED}{result.error}{CRESET}")
+            print()
+
+
+def display_statistics(history):
+    history.display_statistics()
+
+def main_menu():
+    main_menu_title = "  Select an option.\n  Press Q or Esc to quit. \n"
+    main_menu_items = ["-- METHODS --", "TCP Ping", "UDP Ping", "ICMP Ping", "HTTP Ping", "-- OTHER --", "View History", "View Statistics", "Quit"]
+    main_menu_cursor = "> "
+    main_menu_cursor_style = ("fg_red", "bold")
+    main_menu_style = ("bg_red", "fg_black")
+    main_menu_exit = False
+
+    main_menu = TerminalMenu(
+        menu_entries=main_menu_items,
+        title=main_menu_title,
+        menu_cursor=main_menu_cursor,
+        menu_cursor_style=main_menu_cursor_style,
+        menu_highlight_style=main_menu_style,
+        cycle_cursor=True,
+        clear_screen=False,
+    )
+
+    os.system("clear")  # Clear the screen
     print(welcome_message)
     print(info)
 
-    # Create an instance of PingHistory
-    ping_history = PingHistory()
+    history = PingHistory()  # Create a new instance of PingHistory
 
-    # Create a terminal menu for protocol selection
-    protocol_menu_title = "Select a protocol:"
-    protocol_menu_items = ["ICMP", "UDP", "TCP", "Exit"]
-    protocol_menu = TerminalMenu(protocol_menu_items, protocol_menu_title)
-    protocol_index = protocol_menu.show()
+    while not main_menu_exit:
+        main_sel = main_menu.show()
 
-    # Loop until the user chooses to exit
-    while protocol_index != len(protocol_menu_items) - 1:
-        protocol = protocol_menu_items[protocol_index]
+        if main_sel == 1:
+            print(f"{CRED}TCP Ping selected{CRESET}")
+            target = ""
+            while not target:
+                target = input("Enter an IP address or website: ")
+            port = ""
+            while not port:
+                port = input("Enter a port: ")
+            num_pings = ""
+            while not num_pings:
+                num_pings = input("Enter the number of pings: ")
+            delay = ""
+            while not delay:
+                delay = input("Enter a delay (in seconds): ")
+            if int(delay) <= 0:
+                print(f"{CRED}Invalid delay value. Delay must be greater than 0.{CRESET}")
+                return
 
-        # Get the target IP address or domain from the user
-        target = input("\nEnter the IP address or domain to ping: ")
+            try:
+                ip = target if target.isdigit() else socket.gethostbyname(target)  # Get the IP address from the hostname or use the IP directly
+                print(f"Attempting to connect to {CGREEN}{target} {CWHITE}[{CGREEN}{ip}{CWHITE}] {CRESET}on {CGREEN}TCP {CWHITE}Port: {CGREEN}{port}{CRESET}\n")
 
-        # Get the port number for UDP and TCP protocols
-        if protocol == "UDP" or protocol == "TCP":
-            port = int(input("Enter the port number to test: "))
-        else:
-            port = None
+                for _ in range(int(num_pings)):
+                    response_time, error = tcp_ping(ip, int(port))
 
-        # Perform the ping test based on the selected protocol
-        if protocol == "ICMP":
-            response_time, error = icmp_ping(target)
-        elif protocol == "UDP":
-            response_time, error = udp_ping(target, port)
-        elif protocol == "TCP":
-            response_time, error = tcp_ping(target, port)
+                    result = PingResult(target, "TCP", port, response_time, error)
+                    history.add_result(result)
 
-        # Create a PingResult object with the test results
-        result = PingResult(target, protocol, port, response_time, error)
+                    if response_time is not None:
+                        response_str = f"Connected | {CGREEN}{ip}{CRESET} {CWHITE}| Time = {CGREEN}{response_time:.0f} ms{CRESET} {CWHITE}| Protocol {CGREEN}TCP{CRESET} {CWHITE}| Port {CGREEN}{port}{CRESET}"
+                        print(response_str)
+                    else:
+                        error_str = f"Failed to reach {CRED}{ip}{CRESET} on {CRED}{port}{CRESET} | Error: {CRED}{error}{CRESET}"
+                        print(error_str)
 
-        # Add the result to PingHistory
-        ping_history.add_result(result)
+                    time.sleep(int(delay))  # Add a delay between each ping
 
-        print("\n--- Ping Result ---")
-        print(f"Target: {result.target}")
-        print(f"Protocol: {result.protocol}")
-        if result.port:
-            print(f"Port: {result.port}")
-        print(f"Response Time: {result.response_time:.0f} ms")
-        if result.error:
-            print(f"Error: {result.error}")
+            except (socket.gaierror, ValueError) as e:
+                print(f"{CRED}Invalid IP address or website | Error: {str(e)}")
+            except Exception as e:
+                print(f"{CRED}An error occurred | Error: {str(e)}")
 
-        # Wait for user input before continuing
-        input("\nPress Enter to continue...")
+        elif main_sel == 2:
+            print(f"{CRED}UDP Ping selected{CRESET}")
+            target = ""
+            while not target:
+                target = input("Enter an IP address or website: ")
+            port = ""
+            while not port:
+                port = input("Enter a port: ")
+            num_pings = ""
+            while not num_pings:
+                num_pings = input("Enter the number of pings: ")
+            delay = ""
+            while not delay:
+                delay = input("Enter a delay (in seconds): ")
+            if int(delay) <= 0:
+                print(f"{CRED}Invalid delay value. Delay must be greater than 0.{CRESET}")
+                return
 
-        # Clear the console
-        subprocess.call("cls" if os.name == "nt" else "clear", shell=True)
+            try:
+                ip = target if target.isdigit() else socket.gethostbyname(target)  # Get the IP address from the hostname or use the IP directly
+                print(f"Attempting to connect to {CGREEN}{target} {CWHITE}[{CGREEN}{ip}{CWHITE}] {CRESET}on {CGREEN}UDP {CWHITE}Port: {CGREEN}{port}{CRESET}\n")
 
-        # Show the protocol selection menu again
-        protocol_index = protocol_menu.show()
+                for _ in range(int(num_pings)):
+                    response_time, error = udp_ping(ip, int(port))
 
-    # Save the test results to a text file
-    ping_history.save_test()
+                    result = PingResult(target, "UDP", port, response_time, error)
+                    history.add_result(result)
 
-    print(f"\nTest results saved to {ping_history.filename}\n")
+                    if response_time is not None:
+                        response_str = f"Connected | {CGREEN}{ip}{CRESET} {CWHITE}| Time = {CGREEN}{response_time:.0f} ms{CRESET} {CWHITE}| Protocol {CGREEN}UDP{CRESET} {CWHITE}| Port {CGREEN}{port}{CRESET}"
+                        print(response_str)
+                    else:
+                        error_str = f"Failed to reach {CRED}{ip}{CRESET} on {CRED}{port}{CRESET} | Error: {CRED}{error}{CRESET}"
+                        print(error_str)
+
+                    time.sleep(int(delay))  # Add a delay between each ping
+
+            except (socket.gaierror, ValueError) as e:
+                print(f"{CRED}Invalid IP address or website | Error: {str(e)}")
+            except Exception as e:
+                print(f"{CRED}An error occurred | Error: {str(e)}")
+
+        elif main_sel == 3:
+            print(f"{CRED}ICMP Ping selected{CRESET}")
+            target = ""
+            while not target:
+                target = input("Enter an IP address or website: ")
+            num_pings = ""
+            while not num_pings:
+                num_pings = input("Enter the number of pings: ")
+            delay = ""
+            while not delay:
+                delay = input("Enter a delay(in seconds): ")
+            if int(delay) <= 0:
+                print(f"{CRED}Invalid delay value. Delay must be greater than 0.{CRESET}")
+                return
+
+            try:
+                ip = target if target.isdigit() else socket.gethostbyname(target)  # Get the IP address from the hostname or use the IP directly
+                print(f"Attempting to ping {CGREEN}{target} {CWHITE}[{CGREEN}{ip}{CWHITE}] {CRESET}using {CGREEN}ICMP{CRESET}\n")
+
+                for _ in range(int(num_pings)):
+                    response_time, error = icmp_ping(ip)
+
+                    result = PingResult(target, "ICMP", None, response_time, error)
+                    history.add_result(result)
+
+                    if response_time is not None:
+                        response_str = f"Connected | {CGREEN}{target}{CRESET} {CWHITE}| Time = {CGREEN}{response_time:.0f} ms{CRESET} {CWHITE}| Protocol {CGREEN}ICMP{CRESET}"
+                        print(response_str)
+                    else:
+                        error_str = f"Failed to reach {CRED}{target}{CRESET} | Error: {CRED}{error}{CRESET}"
+                        print(error_str)
+
+                    time.sleep(int(delay))  # Add a delay between each ping
+
+            except (socket.gaierror, ValueError) as e:
+                print(f"{CRED}Invalid IP address or website | Error: {str(e)}")
+            except Exception as e:
+                print(f"{CRED}An error occurred | Error: {str(e)}")
+
+        elif main_sel == 4:
+            print(f"{CRED}HTTP Ping selected{CRESET}")
+            url = ""
+            while not url:
+                url = input("Enter a URL: ")
+            num_pings = ""
+            while not num_pings:
+                num_pings = input("Enter the number of pings: ")
+            delay = ""
+            while not delay:
+                delay = input("Enter a delay (in seconds): ")
+            if int(delay) <= 0:
+                print(f"{CRED}Invalid delay value. Delay must be greater than 0.{CRESET}")
+                return
+
+            try:
+                print(f"Attempting to connect to {CGREEN}{url}{CRESET}\n")
+
+                for _ in range(int(num_pings)):
+                    response_time, error = http_ping(url)
+
+                    result = PingResult(url, "HTTP", None, response_time, error)
+                    history.add_result(result)
+
+                    if response_time is not None:
+                        response_str = f"Connected | {CGREEN}{url}{CRESET} | Time = {CGREEN}{response_time:.0f} ms{CRESET} | Protocol {CGREEN}HTTP{CRESET}"
+                        print(response_str)
+                    else:
+                        error_str = f"Failed to reach {CRED}{url}{CRESET} | Error: {CRED}{error}{CRESET}"
+                        print(error_str)
+
+                    time.sleep(int(delay))  # Add a delay between each ping
+
+            except (ValueError, socket.timeout) as e:
+                print(f"{CRED}Invalid URL or number of pings | Error: {str(e)}")
+            except Exception as e:
+                print(f"{CRED}An error occurred | Error: {str(e)}")
+
+        elif main_sel == 6:
+            history.display_history()
+
+        elif main_sel == 7:
+            display_statistics(history)
+
+        elif main_sel == 8:
+            history.save_test()
+            main_menu_exit = True
+            print(f"{CRED}Exiting {CCYAN}PingIt!{CRESET}")
+        
+                # Check if it's the last ping in the test
+        if main_sel in [1, 2, 3, 4] and num_pings == "1":
+            history.save_test()  # Save the test results after the last ping
 
 
 if __name__ == "__main__":
-    main()
+    main_menu()
