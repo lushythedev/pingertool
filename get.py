@@ -4,6 +4,7 @@ import socket
 import struct
 import subprocess
 import urllib.request
+import logging
 from colorama import Fore, Style
 from simple_term_menu import TerminalMenu
 
@@ -16,6 +17,8 @@ CGREEN = Fore.LIGHTGREEN_EX
 
 welcome_message = f"{CCYAN}PingIt!{CWHITE} | {CRED}Conducting cross-platform ping+port testing through ping-like emulation for port verification{CRESET}\n{CRED}Version 1.0 | By {CGREEN}PoppingXanax{CRESET}"
 info = f"{CWHITE}\n! Report any issues on Github !{CRESET}\n"
+
+logging.basicConfig(filename='pingit.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class PingResult:
     def __init__(self, target, protocol, port, response_time, error):
@@ -46,6 +49,19 @@ class PingHistory:
                 file.write(f"Error: {result.error}\n")
         self.test_number += 1
 
+    def display_history(self):
+        if not self.results:
+            print(f"{CRED}No ping history available.{CRESET}")
+        else:
+            for result in self.results:
+                print(f"--- Ping Result Test #{result.test_number} ---")
+                print(f"Target: {CCYAN}{result.target}")
+                print(f"Protocol: {CCYAN}{result.protocol}")
+                print(f"Port: {CCYAN}{result.port}")
+                print(f"Response Time: {CCYAN}{result.response_time:.0f} ms{CRESET}")
+                if result.error:
+                    print(f"Error: {CRED}{result.error}{CRESET}")
+                print()
 
     def display_statistics(self):
         if not self.results:
@@ -157,7 +173,7 @@ def icmp_ping(ip):
         return None, error_message
 
 def calculate_checksum(data):
-    # Calculate the checksum forICMP packets.
+    # Calculate the checksum for ICMP packets.
     checksum = 0
 
     # If the data length is odd, append a zero byte
@@ -194,24 +210,6 @@ def http_ping(url):
         return None, "Connection timeout"
     except Exception as e:
         return None, f"Error: {str(e)}"
-
-def display_history(history):
-    if not history.results:
-        print(f"{CRED}No ping history available.{CRESET}")
-    else:
-        for result in history.results:
-            print(f"--- Ping Result Test #{result.test_number} ---")
-            print(f"Target: {CCYAN}{result.target}")
-            print(f"Protocol: {CCYAN}{result.protocol}")
-            print(f"Port: {CCYAN}{result.port}")
-            print(f"Response Time: {CCYAN}{result.response_time:.0f} ms{CRESET}")
-            if result.error:
-                print(f"Error: {CRED}{result.error}{CRESET}")
-            print()
-
-
-def display_statistics(history):
-    history.display_statistics()
 
 def main_menu():
     main_menu_title = "  Select an option.\n  Press Q or Esc to quit. \n"
@@ -334,14 +332,14 @@ def main_menu():
                 num_pings = input("Enter the number of pings: ")
             delay = ""
             while not delay:
-                delay = input("Enter a delay(in seconds): ")
+                delay = input("Enter a delay (in seconds): ")
             if int(delay) <= 0:
                 print(f"{CRED}Invalid delay value. Delay must be greater than 0.{CRESET}")
                 return
 
             try:
                 ip = target if target.isdigit() else socket.gethostbyname(target)  # Get the IP address from the hostname or use the IP directly
-                print(f"Attempting to ping {CGREEN}{target} {CWHITE}[{CGREEN}{ip}{CWHITE}] {CRESET}using {CGREEN}ICMP{CRESET}\n")
+                print(f"Attempting to connect to {CGREEN}{target} {CWHITE}[{CGREEN}{ip}{CWHITE}] {CRESET}using {CGREEN}ICMP{CRESET}\n")
 
                 for _ in range(int(num_pings)):
                     response_time, error = icmp_ping(ip)
@@ -350,10 +348,10 @@ def main_menu():
                     history.add_result(result)
 
                     if response_time is not None:
-                        response_str = f"Connected | {CGREEN}{target}{CRESET} {CWHITE}| Time = {CGREEN}{response_time:.0f} ms{CRESET} {CWHITE}| Protocol {CGREEN}ICMP{CRESET}"
+                        response_str = f"Connected | {CGREEN}{ip}{CRESET} {CWHITE}| Time = {CGREEN}{response_time:.0f} ms{CRESET} {CWHITE}| Protocol {CGREEN}ICMP{CRESET}"
                         print(response_str)
                     else:
-                        error_str = f"Failed to reach {CRED}{target}{CRESET} | Error: {CRED}{error}{CRESET}"
+                        error_str = f"Failed to reach {CRED}{ip}{CRESET} | Error: {CRED}{error}{CRESET}"
                         print(error_str)
 
                     time.sleep(int(delay))  # Add a delay between each ping
@@ -379,7 +377,7 @@ def main_menu():
                 return
 
             try:
-                print(f"Attempting to connect to {CGREEN}{url}{CRESET}\n")
+                print(f"Attempting to connect to {CGREEN}{url}{CRESET} using {CGREEN}HTTP{CRESET}\n")
 
                 for _ in range(int(num_pings)):
                     response_time, error = http_ping(url)
@@ -388,7 +386,7 @@ def main_menu():
                     history.add_result(result)
 
                     if response_time is not None:
-                        response_str = f"Connected | {CGREEN}{url}{CRESET} | Time = {CGREEN}{response_time:.0f} ms{CRESET} | Protocol {CGREEN}HTTP{CRESET}"
+                        response_str = f"Connected | {CGREEN}{url}{CRESET} {CWHITE}| Time = {CGREEN}{response_time:.0f} ms{CRESET} {CWHITE}| Protocol {CGREEN}HTTP{CRESET}"
                         print(response_str)
                     else:
                         error_str = f"Failed to reach {CRED}{url}{CRESET} | Error: {CRED}{error}{CRESET}"
@@ -396,20 +394,24 @@ def main_menu():
 
                     time.sleep(int(delay))  # Add a delay between each ping
 
-            except (ValueError, socket.timeout) as e:
-                print(f"{CRED}Invalid URL or number of pings | Error: {str(e)}")
             except Exception as e:
                 print(f"{CRED}An error occurred | Error: {str(e)}")
 
-        elif main_sel == 6:
+        elif main_sel == 5:
             history.display_history()
 
-        elif main_sel == 7:
-            display_statistics(history)
+        elif main_sel == 6:
+            history.display_statistics()
 
-        elif main_sel == 8:
+        elif main_sel == 7:
             main_menu_exit = True
-            print(f"{CRED}Exiting {CCYAN}PingIt!{CRESET}")
+            print(f"\n{CRED}Exiting PingIt!{CRESET}")
+            print(f"{CCYAN}Thank you for using PingIt!{CRESET}")
+
+        else:
+            main_menu_exit = True
+            print(f"\n{CRED}Exiting PingIt!{CRESET}")
+            print(f"{CCYAN}Thank you for using PingIt!{CRESET}")
 
 if __name__ == "__main__":
     main_menu()
