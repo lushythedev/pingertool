@@ -29,31 +29,6 @@ class PingHistory:
     def __init__(self):
         self.results = []
         self.test_number = 1
-        self.filename = "ping_history.txt"  # Specify the filename
-
-    def add_result(self, result):
-        self.results.append(result)
-
-    def save_test(self):
-        if not self.results:
-            print(f"{CRED}No test results available.{CRESET}")
-            return
-
-        with open(self.filename, "a") as file:  # Open the file in append mode
-            file.write(f"--- Ping Results Test #{self.test_number} ---\n\n")
-            for index, result in enumerate(self.results, start=1):
-                file.write(f"--- Ping Result {index} ---\n")
-                file.write(f"Target: {result.target}\n")
-                file.write(f"Protocol: {result.protocol}\n")
-                file.write(f"Port: {result.port}\n")
-                file.write(f"Response Time: {result.response_time:.0f} ms\n")
-                if result.error:
-                    file.write(f"Error: {result.error}\n")
-                file.write("\n")
-        self.test_number += 1
-        self.results = []  # Clear the results after saving the test
-
-
 
     def add_result(self, result):
         self.results.append(result)
@@ -433,14 +408,8 @@ def main_menu():
             display_statistics(history)
 
         elif main_sel == 8:
-            history.save_test()
             main_menu_exit = True
             print(f"{CRED}Exiting {CCYAN}PingIt!{CRESET}")
-        
-                # Check if it's the last ping in the test
-        if main_sel in [1, 2, 3, 4] and num_pings == "1":
-            history.save_test()  # Save the test results after the last ping
-
 
 if __name__ == "__main__":
     main_menu()
